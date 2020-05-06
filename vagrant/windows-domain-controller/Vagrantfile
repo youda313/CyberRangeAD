@@ -1,0 +1,71 @@
+#Setting UP DC vagrant/ansible
+
+Vagrant.configure("2") do |config|
+
+	#Domain Controller section
+	config.vm.define "windows2016-domain-controller" do |w2016DC|
+	
+	w2016DC.vm.box = "detectionlab/win2016" #TODO change the base image.
+    w2016DC.vm.hostname = "dc"
+    w2016DC.vm.boot_timeout = 600
+    w2016DC.winrm.transport = :plaintext
+    w2016DC.vm.communicator = "winrm"
+    w2016DC.winrm.basic_auth_only = true
+    w2016DC.winrm.timeout = 300
+    w2016DC.winrm.retry_limit = 20
+    w2016DC.vm.network "forwarded_port", guest: 5985, host: 6000
+    w2016DC.vm.network :private_network, ip: "192.168.38.102", gateway: "192.168.38.1", dns: "8.8.8.8"
+	#w2016DC.vm.network :private_network, ip: "{{ windows_domain_controller_private_ip }}"
+
+	w2016DC.vm.provision "ansible" do |ansible|
+	      ansible.extra_vars = {
+	        ansible_port: 6000,
+	        win_password: '{{ win_password }}',
+	        #splunk_indexer_ip: "{{ splunk_server_private_ip }}",
+	        #splunk_uf_win_url: '{{ splunk_uf_win_url }}',
+	        #splunk_admin_password: '{{ splunk_admin_password }}'
+	        #win_sysmon_url: '{{ win_sysmon_url }}',
+	        #win_sysmon_template: '{{ win_sysmon_template }}',
+	      }
+	      ansible.playbook = "../ansible/playbooks/windows_dc.yml"
+	      ansible.config_file = "../ansible/ansible.cfg"
+	      ansible.compatibility_mode = "2.0"
+	  end
+
+
+    w2016DC.vm.provider "virtualbox" do |vb, override|
+      vb.gui = true
+      vb.name = "#{VM_NAME_WIN_DC}"
+      vb.default_nic_type = "82545EM"
+      vb.customize ["modifyvm", :id, "--memory", 3072]
+      vb.customize ["modifyvm", :id, "--cpus", 2]
+      vb.customize ["modifyvm", :id, "--vram", "32"]
+      vb.customize ["modifyvm", :id, "--clipboard", "bidirectional"]
+      vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize ["setextradata", "global", "GUI/SuppressMessages", "all" ]
+    end
+
+    w2016DC.vm.provider "vmware_desktop" do |v, override|
+      v.vmx["displayname"] = "#{VM_NAME_WIN_DC}"
+      v.memory = 3072
+      v.cpus = 2
+      v.gui = true
+      v.enable_vmrun_ip_lookup = false
+    end
+
+    w2016DC.vm.provider "libvirt" do |lv, override|
+      lv.graphics_type = "spice"
+      lv.video_type = "qxl"
+      lv.input :type => "tablet", :bus => "usb"
+
+      override.vm.box = "../Boxes/windows_2016_libvirt.box"
+      lv.video_vram = 32768
+      lv.memory = 3072
+      lv.cpus = 2
+      # This is NOT the right semantic for Vagrant synced folder. It's a workaround:
+      # https://github.com/Cimpress-MCP/vagrant-winrm-syncedfolders/issues/11
+      override.vm.synced_folder '.', '/', type: 'winrm' 
+    end
+  end
+  #END Domain Controller section
+end
