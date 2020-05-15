@@ -1,0 +1,7 @@
+---
+configs:
+  w2016DC: 
+    win_password: 'tryAgain123!'
+    VM_NAME_WIN_DC: 'W2016DC'
+        
+
